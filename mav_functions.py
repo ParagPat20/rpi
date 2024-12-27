@@ -362,7 +362,8 @@ class SerialHandler:
                 
                 # Parse each part
                 for part in parts:
-                    key, value = part.strip().split(':')
+                    # Use maxsplit=1 to handle cases where value might contain colons
+                    key, value = part.strip().split(':', maxsplit=1)
                     command_dict[key.strip()] = value.strip()
                 
                 # Handle the command based on the parsed data
@@ -374,4 +375,4 @@ class SerialHandler:
                 print(f"Received from {sender}: Command: {command}, Payload: {payload}")
                 
             except Exception as e:
-                print(f"Error processing received message: {e}") 
+                print(f"Error processing received message '{message}': {e}") 
