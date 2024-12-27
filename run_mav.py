@@ -19,7 +19,8 @@ def main():
         while True:
             # Example command to send to the drone
             print("Sending message to drone")
-            time.sleep(4)
+            time.sleep(1)
+            serial_handler.send_message('GCS', 'HB', '1')
 
     except KeyboardInterrupt:
         print("Shutting down...")
