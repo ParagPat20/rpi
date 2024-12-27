@@ -1,0 +1,58 @@
+Command examples for SERIAL -> ESP32
+
+{T:MCU; C:ARM; P:GUIDED}\n
+{T:MCU; C:LAUNCH}\n
+
+Command examples for ESP32 -> SERIAL
+
+{S:GCS; C:ARM; P:GUIDED}
+{S:GCS; C:LAUNCH}
+
+MODES
+
+   GUIDED
+   POSHOLD
+   LOITER
+   STABILIZE
+   RTL
+   LAND
+   SMART_RTL
+   FLIP
+   ALT_HOLD
+
+COMMANDS : PAYLOAD 
+
+   INIT : 1
+   CLOSE : 1
+   ARM : (MODES)
+   DISARM : 1
+   LAUNCH : (ALT)
+   NED : (X,Y,Z,T)
+   YAW : (H,R)
+   SET_MODE : (MODES)
+   MTL : (DIS, ALT, NEWS_DEG)
+   RCOV : (STATE, CH1, CH2, CH3, CH4, CH5, CH6)
+   REQ : (DATA)
+
+DATA // Sender will request for the data
+
+   LOC : LAT, LON, ALT
+   GPS : TYPE, SATELITES
+   BATT : VOLT, AMP, LEVEL
+   ATTITUDE : PITCH, ROLL, YAW, HEADING
+   GET_MODE : (MODES)
+   SPEED : AIRSPD, GNDSPD, VELOCITY
+   IS_ARMED : 1 OR 0
+   IS_CONNECTED : 1 OR 0
+
+DRONES
+
+   MCU
+   CD1
+   CD2
+   CD3
+   CD4
+
+GCS
+
+   GCS_PC

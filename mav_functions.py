@@ -172,27 +172,6 @@ class DroneVehicle:
         
         self.vehicle.send_mavlink(msg)
 
-    def get_vehicle_state(self):
-        """Returns vehicle state for ESP32 communication"""
-        try:
-            return {
-                'armed': self.vehicle.armed,
-                'mode': self.vehicle.mode.name,
-                'altitude': self.vehicle.location.global_relative_frame.alt,
-                'heading': self.vehicle.heading,
-                'groundspeed': self.vehicle.groundspeed,
-                'airspeed': self.vehicle.airspeed,
-                'battery_voltage': self.vehicle.battery.voltage,
-                'battery_current': self.vehicle.battery.current,
-                'battery_level': self.vehicle.battery.level,
-                'ekf_ok': self.vehicle.ekf_ok,
-                'last_heartbeat': self.vehicle.last_heartbeat,
-                'system_status': self.vehicle.system_status,
-                'uptime': time.time() - self.start_time
-            }
-        except Exception as e:
-            print(f"Error getting vehicle state: {e}")
-            return None
 
     def set_mode(self, mode_name):
         """Changes vehicle mode"""
@@ -221,21 +200,18 @@ class DroneVehicle:
         
         return (round(new_location.latitude, 7), round(new_location.longitude, 7)) 
 
-    def handle_attitude_request(self, drone_id):
+    def handle_param_request(self, command):
         """
-        Handles attitude data requests for a specific drone.
-        Sends commands to request location, GPS, battery, and attitude data.
+        Handles parameter data requests based on the command.
+        Constructs and returns the requested data as a string.
         
         Args:
-            drone_id (str): The ID of the drone (e.g., 'MCU', 'CD1', etc.)
+            command (str): The command specifying the data to request (e.g., 'LOC', 'GPS', etc.)
             
         Returns:
-            dict: A dictionary containing all the requested attitude data
+            str: A comma-separated string of the requested data
         """
         try:
-            # Initialize data dictionary
-            self.attitude_data = {}
-            
             # Define the data requests based on protocol
             data_requests = {
                 'LOC': ['lat', 'lon', 'alt'],
@@ -245,54 +221,51 @@ class DroneVehicle:
                 'SPEED': ['airspd', 'gndspd', 'velocity']
             }
             
-            # Send commands for each data type
-            for data_type, params in data_requests.items():
-                try:
-                    # Format and send command
-                    command = f"{{T:{drone_id}; C:REQ; P:{data_type}}}\n"
-                    print(f"Sending command: {command}")
-                    
-                    # Store the response in attitude_data
-                    if data_type == 'LOC':
-                        self.attitude_data.update({
-                            'lat': self.vehicle.location.global_relative_frame.lat,
-                            'lon': self.vehicle.location.global_relative_frame.lon,
-                            'alt': self.vehicle.location.global_relative_frame.alt
-                        })
-                    elif data_type == 'GPS':
-                        self.attitude_data.update({
-                            'type': self.vehicle.gps_0.fix_type,
-                            'satellites': self.vehicle.gps_0.satellites_visible
-                        })
-                    elif data_type == 'BATT':
-                        self.attitude_data.update({
-                            'volt': self.vehicle.battery.voltage,
-                            'amp': self.vehicle.battery.current,
-                            'level': self.vehicle.battery.level
-                        })
-                    elif data_type == 'ATTITUDE':
-                        self.attitude_data.update({
-                            'pitch': self.vehicle.attitude.pitch,
-                            'roll': self.vehicle.attitude.roll,
-                            'yaw': self.vehicle.attitude.yaw,
-                            'heading': self.vehicle.heading
-                        })
-                    elif data_type == 'SPEED':
-                        self.attitude_data.update({
-                            'airspd': self.vehicle.airspeed,
-                            'gndspd': self.vehicle.groundspeed,
-                            'velocity': self.vehicle.velocity
-                        })
-                        
-                except Exception as e:
-                    print(f"Error requesting {data_type} data: {e}")
-                    self.attitude_data[data_type] = f"Error: {str(e)}"
-                    
-            return self.attitude_data
+            # Construct the response string
+            response = ""
+            if command in data_requests:
+                params = data_requests[command]
+                for param in params:
+                    if param == 'lat':
+                        response += f"{self.vehicle.location.global_relative_frame.lat},"
+                    elif param == 'lon':
+                        response += f"{self.vehicle.location.global_relative_frame.lon},"
+                    elif param == 'alt':
+                        response += f"{self.vehicle.location.global_relative_frame.alt},"
+                    elif param == 'type':
+                        response += f"{self.vehicle.gps_0.fix_type},"
+                    elif param == 'satellites':
+                        response += f"{self.vehicle.gps_0.satellites_visible},"
+                    elif param == 'volt':
+                        response += f"{self.vehicle.battery.voltage},"
+                    elif param == 'amp':
+                        response += f"{self.vehicle.battery.current},"
+                    elif param == 'level':
+                        response += f"{self.vehicle.battery.level},"
+                    elif param == 'pitch':
+                        response += f"{self.vehicle.attitude.pitch},"
+                    elif param == 'roll':
+                        response += f"{self.vehicle.attitude.roll},"
+                    elif param == 'yaw':
+                        response += f"{self.vehicle.attitude.yaw},"
+                    elif param == 'heading':
+                        response += f"{self.vehicle.heading},"
+                    elif param == 'airspd':
+                        response += f"{self.vehicle.airspeed},"
+                    elif param == 'gndspd':
+                        response += f"{self.vehicle.groundspeed},"
+                    elif param == 'velocity':
+                        response += f"{self.vehicle.velocity},"
+                # Remove the trailing comma
+                response = response.rstrip(',')
+            else:
+                response = "Invalid command"
+                
+            return response
                     
         except Exception as e:
-            print(f"Error in handle_attitude_request: {e}")
-            return {"error": str(e)}
+            print(f"Error in handle_param_request: {e}")
+            return "Error: " + str(e)
             
     def get_attitude_data(self):
         """
@@ -374,8 +347,15 @@ class SerialHandler:
                 
                 print(f"Parsed Command: {command}, Payload: {payload}")  # Debugging line
                 
-                # Process the command (this is where you would add your logic)
+                # Check if the command is REQ
+                if command == 'REQ':
+                    # Handle the attitude request and send the response back to the sender
+                    response_data = self.drone.handle_attitude_request(sender)
+                    response_message = f"{{T:{sender};C:RES;P:{response_data}}}\n"
+                    self.send_message(sender, 'RES', response_data)  # Send the response back to the sender
+                    print(f"Sent response to {sender}: {response_data}")  # Debugging line
+                
                 print(f"Received from {sender}: Command: {command}, Payload: {payload}")
                 
             except Exception as e:
-                print(f"Error processing received message '{message}': {e}") 
+                print(f"Error processing received message '{message}': {e}")
