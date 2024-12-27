@@ -322,7 +322,7 @@ class SerialHandler:
 
     def process_received_message(self, message):
         """
-        Processes a received message in the format {S:sender;C:cmd;P:payload}
+        Processes a received message in the format {S:sender,C:cmd,P:payload}
         
         Args:
             message (str): The received message string
@@ -330,13 +330,12 @@ class SerialHandler:
         print(f"Raw message received: {message}")  # Debugging line
         if message.startswith('{') and message.endswith('}'):
             try:
-                # Remove brackets and split by semicolon
-                parts = message[1:-1].split(';')
+                # Remove brackets and split by comma instead of semicolon
+                parts = message[1:-1].split(',')
                 command_dict = {}
                 
                 # Parse each part
                 for part in parts:
-                    # Use maxsplit=1 to handle cases where value might contain colons
                     key, value = part.strip().split(':', maxsplit=1)
                     command_dict[key.strip()] = value.strip()
                 
