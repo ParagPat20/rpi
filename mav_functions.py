@@ -353,6 +353,9 @@ class SerialHandler:
                 
                 print(f"Received from {sender}: Command: {command}, Payload: {payload}")
                 
+                response = self.handle_commands(command, payload)
+                self.send_message(sender, 'RES', response)
+                
             except Exception as e:
                 print(f"Error processing received message '{message}': {e}")
 
