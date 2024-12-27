@@ -343,9 +343,7 @@ class SerialHandler:
                 sender = command_dict.get('S')
                 command = command_dict.get('C')
                 payload = command_dict.get('P')
-                
-                print(f"Parsed Command: {command}, Payload: {payload}")  # Debugging line
-                
+                                
                 # Check if the command is REQ
                 if command == 'REQ':
                     # Handle the attitude request and send the response back to the sender
@@ -357,3 +355,67 @@ class SerialHandler:
                 
             except Exception as e:
                 print(f"Error processing received message '{message}': {e}")
+
+    def handle_commands(self, command, payload):
+        """
+        Handles drone commands based on the protocol
+        
+        Args:
+            command (str): Command to execute
+            payload (str): Command parameters
+        
+        Returns:
+            str: Response message or error
+        """
+        try:
+            if command == "INIT":
+                # Initialize connection
+                return "Connected to drone"
+                
+            elif command == "CLOSE":
+                self.drone.disconnect()
+                return "Disconnected from drone"
+                
+            elif command == "ARM":
+                mode = payload if payload else "GUIDED"
+                self.drone.arm(mode)
+                return f"Armed in {mode} mode"
+                
+            elif command == "DISARM":
+                self.drone.disarm()
+                return "Disarmed"
+                
+            elif command == "LAUNCH":
+                alt = float(payload) if payload else 2
+                self.drone.takeoff(alt)
+                return f"Launched to altitude {alt}m"
+                
+            elif command == "NED":
+                # Parse X,Y,Z,T from payload
+                x, y, z, t = map(float, payload.split(','))
+                self.drone.send_ned_velocity(x, y, z, t)
+                return f"Moving with velocity x:{x} y:{y} z:{z} for {t}s"
+                
+            elif command == "YAW":
+                # Parse heading and relative from payload
+                h, r = map(float, payload.split(','))
+                self.drone.yaw(h, bool(r))
+                return f"Yawing to heading {h}"
+                
+            elif command == "SET_MODE":
+                self.drone.set_mode(payload)
+                return f"Mode set to {payload}"
+                
+            elif command == "MTL":
+                # Parse distance, altitude, bearing from payload
+                dis, alt, bearing = map(float, payload.split(','))
+                current_loc = self.drone.get_location()[0]
+                new_loc = self.drone.new_location(current_loc, dis, bearing)
+                self.drone.goto(new_loc, alt)
+                return f"Moving to location at distance {dis}m, altitude {alt}m, bearing {bearing}°"
+                
+            else:
+                return f"Unknown command: {command}"
+                
+        except Exception as e:
+            return f"Error executing {command}: {e}"
