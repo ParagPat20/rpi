@@ -222,7 +222,9 @@ class DroneVehicle:
                 'GPS': ['type', 'satellites'],
                 'BATT': ['volt', 'amp', 'level'],
                 'ATTITUDE': ['pitch', 'roll', 'yaw', 'heading'],
-                'SPEED': ['airspd', 'gndspd', 'velocity']
+                'SPEED': ['airspd', 'gndspd', 'velocity'],
+                'MODE': ['mode'],
+                'ARMED': ['is_armed']
             }
             
             # Construct the response string
@@ -260,6 +262,10 @@ class DroneVehicle:
                         response += f"{self.vehicle.groundspeed},"
                     elif param == 'velocity':
                         response += f"{self.vehicle.velocity},"
+                    elif param == 'mode':
+                        response += f"{self.vehicle.mode.name},"
+                    elif param == 'is_armed':
+                        response += f"{self.vehicle.armed},"
                 # Remove the trailing comma
                 response = response.rstrip(',')
             else:
@@ -354,11 +360,11 @@ class SerialHandler:
                     response_data = self.drone.handle_param_request(payload)
                     self.send_message(sender, payload, response_data)  # Send the response back to the sender
                     print(f"Sent response to {sender}: {response_data}")  # Debugging line
+                else:
+                    response = self.handle_commands(command, payload)
+                    self.send_message(sender, 'RES', response)
                 
                 print(f"Received from {sender}: Command: {command}, Payload: {payload}")
-                
-                response = self.handle_commands(command, payload)
-                self.send_message(sender, 'RES', response)
                 
             except Exception as e:
                 print(f"Error processing received message '{message}': {e}")
