@@ -6,7 +6,8 @@ def main():
     # Initialize the drone with the appropriate connection string
     connection_string = '/dev/serial0'  # Change this to your actual connection string
     drone = DroneVehicle(connection_string)
-    serial_handler = SerialHandler(drone)  # Initialize SerialHandler with the drone instance
+    
+    serial_handler = SerialHandler(drone, '/dev/ttyUSB0', 115200)  # Initialize SerialHandler with the drone instance
     print("Drone initialized")
 
     # Start the serial handler in a separate thread

@@ -7,6 +7,7 @@ from geopy.distance import great_circle
 import math
 import json
 from threading import Lock
+import serial
 
 class DroneVehicle:
     def __init__(self, connection_string, baud=None):
@@ -303,9 +304,9 @@ class DroneVehicle:
         return self.attitude_data 
 
 class SerialHandler:
-    def __init__(self, drone_vehicle):
+    def __init__(self, drone_vehicle, port, baudrate):
         self.drone = drone_vehicle
-        self.serial_port = None
+        self.serial_port = serial.Serial(port, baudrate)
         self.is_running = False
         self.read_thread = None
         self.write_lock = Lock()
