@@ -24,16 +24,20 @@ class DroneVehicle:
         print("Disconnected Successfully")
 
     def arm(self, mode='GUIDED'):
-        """Arms the vehicle in specified mode"""
+        """Arms the vehicle in specified mode with timeout"""
         print("Arming motors")
         self.vehicle.mode = VehicleMode(mode)
         self.vehicle.armed = True
         
-        while not self.vehicle.armed:
+        start_time = time.time()
+        timeout = 10  # Timeout in seconds
+        while not self.vehicle.armed and time.time() - start_time < timeout:
             print("Waiting for arming...")
-            self.vehicle.armed = True
             time.sleep(1)
-        print("Vehicle Armed")
+        if self.vehicle.armed:
+            print("Vehicle Armed")
+        else:
+            print("Arming timed out")
 
     def takeoff(self, alt=1):
         """Takes off to specified altitude"""
