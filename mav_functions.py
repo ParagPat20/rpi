@@ -306,7 +306,7 @@ class DroneVehicle:
 class SerialHandler:
     def __init__(self, drone_vehicle, port, baudrate):
         self.drone = drone_vehicle
-        self.serial_port = serial.Serial(port, baudrate)
+        self.serial_port = serial.Serial(port=port, baudrate=baudrate)
         self.is_running = False
         self.read_thread = None
         self.write_lock = Lock()
