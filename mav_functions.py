@@ -350,9 +350,8 @@ class SerialHandler:
                 # Check if the command is REQ
                 if command == 'REQ':
                     # Handle the attitude request and send the response back to the sender
-                    response_data = self.drone.handle_attitude_request(sender)
-                    response_message = f"{{T:{sender};C:RES;P:{response_data}}}\n"
-                    self.send_message(sender, 'RES', response_data)  # Send the response back to the sender
+                    response_data = self.drone.handle_param_request(payload)
+                    self.send_message(sender, payload, response_data)  # Send the response back to the sender
                     print(f"Sent response to {sender}: {response_data}")  # Debugging line
                 
                 print(f"Received from {sender}: Command: {command}, Payload: {payload}")
