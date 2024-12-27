@@ -10,7 +10,7 @@ from threading import Lock
 import serial
 
 class DroneVehicle:
-    def __init__(self, connection_string, baud=None):
+    def __init__(self, connection_string, baud=115200):
         self.vehicle = connect(connection_string, baud=baud)
         self.posalt = 2
         self.in_air = False
