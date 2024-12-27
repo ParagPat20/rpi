@@ -354,6 +354,7 @@ class SerialHandler:
         Args:
             message (str): The received message string
         """
+        print(f"Raw message received: {message}")  # Debugging line
         if message.startswith('{') and message.endswith('}'):
             try:
                 # Remove brackets and split by semicolon
@@ -370,6 +371,8 @@ class SerialHandler:
                 sender = command_dict.get('S')
                 command = command_dict.get('C')
                 payload = command_dict.get('P')
+                
+                print(f"Parsed Command: {command}, Payload: {payload}")  # Debugging line
                 
                 # Process the command (this is where you would add your logic)
                 print(f"Received from {sender}: Command: {command}, Payload: {payload}")
