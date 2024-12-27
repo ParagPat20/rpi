@@ -421,6 +421,10 @@ class SerialHandler:
                 self.drone.goto(new_loc, alt)
                 return f"Moving to location at distance {dis}m, altitude {alt}m, bearing {bearing}°"
                 
+            elif command == "LAND":
+                self.drone.land()
+                return "Landing initiated"
+                
             else:
                 return f"Unknown command: {command}"
                 
