@@ -331,7 +331,7 @@ class SerialHandler:
         if message.startswith('{') and message.endswith('}'):
             try:
                 # Remove brackets and split by comma instead of semicolon
-                parts = message[1:-1].split(',')
+                parts = message[1:-1].split(';')
                 command_dict = {}
                 
                 # Parse each part
