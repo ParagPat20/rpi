@@ -8,20 +8,54 @@ import math
 import json
 from threading import Lock
 import serial
+import subprocess
+from datetime import datetime
+import os
+
+class LogBook:
+    def __init__(self):
+        self.log_file = "/home/oxi/drone_logbook.txt"
+        os.makedirs(os.path.dirname(self.log_file), exist_ok=True)
+        
+    def log_event(self, event_type, details):
+        """Log an event with timestamp"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_entry = f"[{timestamp}] {event_type}: {details}\n"
+        try:
+            with open(self.log_file, 'a') as f:
+                f.write(log_entry)
+        except Exception as e:
+            print(f"Error writing to logbook: {e}")
 
 class DroneVehicle:
     def __init__(self, connection_string, baud=115200):
-        self.vehicle = connect(connection_string, baud=baud)
+        self.connection_string = connection_string
+        self.baud = baud
+        self.vehicle = None
         self.posalt = 2
         self.in_air = False
         self.start_time = time.time()
         self.attitude_data = {}
+        self.init_vehicle()
+        
+    def init_vehicle(self):
+        """Initialize or reinitialize the vehicle connection"""
+        if self.vehicle:
+            self.disconnect()
+        try:
+            self.vehicle = connect(self.connection_string, baud=self.baud)
+            print("Vehicle initialized successfully")
+            return True
+        except Exception as e:
+            print(f"Failed to initialize vehicle: {e}")
+            return False
         
     def disconnect(self):
-        self.vehicle.close()
-        self.vehicle = None
-        time.sleep(2)
-        print("Disconnected Successfully")
+        if self.vehicle:
+            self.vehicle.close()
+            self.vehicle = None
+            time.sleep(2)
+            print("Disconnected Successfully")
 
     def arm(self, mode='GUIDED'):
         """Arms the vehicle in specified mode with timeout"""
@@ -297,6 +331,7 @@ class SerialHandler:
         self.last_gui_update = 0
         self.heartbeat_interval = 1.0  # 1 second
         self.gui_update_interval = 0.7  # 0.7 seconds
+        self.logbook = LogBook()
 
     def send_message(self, target, command, payload):
         """
@@ -382,57 +417,110 @@ class SerialHandler:
         """
         try:
             if command == "INIT":
-                # Initialize connection
-                return "Connected to drone"
+                # Kill existing mav session if exists
+                try:
+                    subprocess.run(['tmux', 'kill-session', '-t', 'mav'])
+                except:
+                    pass  # Ignore if session doesn't exist
+                # Reinitialize vehicle connection
+                success = self.drone.init_vehicle()
+                self.logbook.log_event("INIT", f"Vehicle reinitialization {'successful' if success else 'failed'}")
+                if success:
+                    return "Vehicle reinitialized and connected"
+                else:
+                    return "Failed to reinitialize vehicle"
+                
+            elif command == "SOCAT":
+                if self.drone.vehicle:
+                    self.drone.disconnect()
+                
+                if payload:
+                    ip, port = payload.split(':')
+                    socat_cmd = f'socat UDP4-DATAGRAM:{ip}:{port} /dev/serial0,b115200,raw,echo=0'
+                else:
+                    socat_cmd = 'socat UDP4-DATAGRAM:192.168.22.161:14553 /dev/serial0,b115200,raw,echo=0'
+                
+                try:
+                    subprocess.run(['sudo', 'tmux', 'new-session', '-d', '-s', 'mav', socat_cmd])
+                    self.logbook.log_event("SOCAT", f"Connection established with command: {socat_cmd}")
+                    return "SOCAT connection established"
+                except Exception as e:
+                    self.logbook.log_event("SOCAT_ERROR", str(e))
+                    return f"Error in SOCAT: {e}"
                 
             elif command == "CLOSE":
                 self.drone.disconnect()
+                self.logbook.log_event("CLOSE", "Vehicle disconnected")
                 return "Disconnected from drone"
                 
             elif command == "ARM":
                 mode = payload if payload else "GUIDED"
                 self.drone.arm(mode)
+                self.logbook.log_event("ARM", f"Armed in {mode} mode")
                 return f"Armed in {mode} mode"
                 
             elif command == "DISARM":
                 self.drone.disarm()
+                self.logbook.log_event("DISARM", "Vehicle disarmed")
                 return "Disarmed"
                 
             elif command == "LAUNCH":
                 alt = float(payload) if payload else 2
                 self.drone.takeoff(alt)
+                self.logbook.log_event("LAUNCH", f"Takeoff to altitude {alt}m")
                 return f"Launched to altitude {alt}m"
                 
             elif command == "NED":
-                # Parse X,Y,Z,T from payload
                 x, y, z, t = map(float, payload.split(','))
                 self.drone.send_ned_velocity(x, y, z, t)
+                self.logbook.log_event("NED", f"Velocity command x:{x} y:{y} z:{z} t:{t}s")
                 return f"Moving with velocity x:{x} y:{y} z:{z} for {t}s"
                 
             elif command == "YAW":
-                # Parse heading and relative from payload
                 h, r = map(float, payload.split(','))
                 self.drone.yaw(h, bool(r))
+                self.logbook.log_event("YAW", f"Yaw to heading {h} {'relative' if bool(r) else 'absolute'}")
                 return f"Yawing to heading {h}"
                 
             elif command == "SET_MODE":
-                self.drone.set_mode(payload)
-                return f"Mode set to {payload}"
+                if payload == "FLIP":
+                    self.drone.set_mode("ALTHOLD")
+                    while self.drone.vehicle.mode.name != "ALTHOLD":
+                        time.sleep(0.1)
+                    self.drone.set_mode("FLIP")
+                    time.sleep(2)
+                    while self.drone.vehicle.mode.name != "ALTHOLD":
+                        time.sleep(0.1)
+                    self.drone.set_mode("GUIDED")
+                    while self.drone.vehicle.mode.name != "GUIDED":
+                        time.sleep(0.1)
+                    self.logbook.log_event("SET_MODE", "FLIP sequence completed")
+                    return "Mode set to GUIDED after FLIP sequence"
+                else:
+                    self.drone.set_mode(payload)
+                    while self.drone.vehicle.mode.name != payload:
+                        time.sleep(0.1)
+                    self.logbook.log_event("SET_MODE", f"Mode changed to {payload}")
+                    return f"Mode set to {payload}"
                 
             elif command == "MTL":
-                # Parse distance, altitude, bearing from payload
                 dis, alt, bearing = map(float, payload.split(','))
                 current_loc = self.drone.get_location()[0]
                 new_loc = self.drone.new_location(current_loc, dis, bearing)
                 self.drone.goto(new_loc, alt)
+                self.logbook.log_event("MTL", f"Moving to location - Distance:{dis}m Alt:{alt}m Bearing:{bearing}°")
                 return f"Moving to location at distance {dis}m, altitude {alt}m, bearing {bearing}°"
                 
             elif command == "LAND":
                 self.drone.land()
+                self.logbook.log_event("LAND", "Landing initiated")
                 return "Landing initiated"
                 
             else:
+                self.logbook.log_event("UNKNOWN_COMMAND", f"Unknown command received: {command}")
                 return f"Unknown command: {command}"
                 
         except Exception as e:
-            return f"Error executing {command}: {e}"
+            error_msg = f"Error executing {command}: {e}"
+            self.logbook.log_event("ERROR", error_msg)
+            return error_msg
