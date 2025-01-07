@@ -433,8 +433,7 @@ class SerialHandler:
             elif command == "SOCAT":
                 if self.drone.vehicle:
                     self.drone.disconnect()
-                
-                if payload:
+                if payload != "0" and payload != 0:
                     ip, port = payload.split(':')
                     socat_cmd = f'socat UDP4-DATAGRAM:{ip}:{port} /dev/serial0,b115200,raw,echo=0'
                 else:
