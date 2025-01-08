@@ -14,7 +14,12 @@ import os
 
 class LogBook:
     def __init__(self):
-        self.log_file = "/home/oxi/drone_logbook.txt"
+        basefile = "/home/oxi/drone_logbook.txt"
+        username = os.path.expandvars("$USER")
+        if username in ["oxi", "oxi1", "oxi2", "oxi3", "oxi4", "oxi5", "oxi6"]:
+            self.log_file = f"/home/{username}/drone_logbook.txt"
+        else:
+            self.log_file = basefile
         os.makedirs(os.path.dirname(self.log_file), exist_ok=True)
         
     def log_event(self, event_type, details):
