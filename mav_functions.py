@@ -437,7 +437,7 @@ class SerialHandler:
                     ip, port = payload.split(':')
                     socat_cmd = f'socat UDP4-DATAGRAM:{ip}:{port} /dev/serial0,b115200,raw,echo=0'
                 else:
-                    socat_cmd = 'socat UDP4-DATAGRAM:192.168.22.161:14553 /dev/serial0,b115200,raw,echo=0'
+                    socat_cmd = 'socat UDP4-DATAGRAM:192.168.146.161:14553 /dev/serial0,b115200,raw,echo=0'
                 
                 try:
                     subprocess.run(['sudo', 'tmux', 'new-session', '-d', '-s', 'mav', socat_cmd])
