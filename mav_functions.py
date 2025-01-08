@@ -14,23 +14,37 @@ import os
 
 class LogBook:
     def __init__(self):
-        basefile = "/home/oxi/drone_logbook.txt"
-        username = os.path.expandvars("$USER")
-        if username in ["oxi", "oxi1", "oxi2", "oxi3", "oxi4", "oxi5", "oxi6"]:
-            self.log_file = f"/home/{username}/drone_logbook.txt"
-        else:
-            self.log_file = basefile
-        os.makedirs(os.path.dirname(self.log_file), exist_ok=True)
+        # Get current username and home directory
+        self.username = os.path.expandvars("$USER")
+        self.home_dir = os.path.expanduser("~")
+        
+        # Create log directory in user's home directory
+        self.log_dir = os.path.join(self.home_dir, "drone_logs")
+        os.makedirs(self.log_dir, exist_ok=True)
+        
+        # Create dated log file
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        self.log_file = os.path.join(self.log_dir, f"drone_log_{current_date}.txt")
+        
+        # Log initialization
+        self.log_event("INIT", f"Log started for user: {self.username}")
         
     def log_event(self, event_type, details):
-        """Log an event with timestamp"""
+        """Log an event with timestamp and username"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_entry = f"[{timestamp}] {event_type}: {details}\n"
+        log_entry = f"[{timestamp}] [{self.username}] {event_type}: {details}\n"
         try:
             with open(self.log_file, 'a') as f:
                 f.write(log_entry)
         except Exception as e:
             print(f"Error writing to logbook: {e}")
+            # Try to create directory again if it doesn't exist
+            try:
+                os.makedirs(self.log_dir, exist_ok=True)
+                with open(self.log_file, 'a') as f:
+                    f.write(log_entry)
+            except Exception as e2:
+                print(f"Fatal error writing to logbook: {e2}")
 
 class DroneVehicle:
     def __init__(self, connection_string, baud=115200):
