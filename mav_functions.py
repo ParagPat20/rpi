@@ -434,7 +434,7 @@ class SerialHandler:
                 if self.drone.vehicle:
                     self.drone.disconnect()
                 if payload != "0" and payload != 0:
-                    ip, port = payload.split(':')
+                    ip, port = payload.split(',')
                     socat_cmd = f'socat UDP4-DATAGRAM:{ip}:{port} /dev/serial0,b115200,raw,echo=0'
                 else:
                     socat_cmd = 'socat UDP4-DATAGRAM:192.168.146.161:14552 /dev/serial0,b115200,raw,echo=0'
