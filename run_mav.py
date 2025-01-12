@@ -49,10 +49,21 @@ def main():
                         logbook.log_event("STATUS", status)
                     
                     if current_altitude > 5:
-                        logbook.log_event("SAFETY", "Altitude exceeded 5 meters, initiating landing")
-                        print("Altitude exceeded 5 meters, initiating landing...")
-                        drone.land()
+                        logbook.log_event("SAFETY", f"Altitude exceeded 5 meters (Current: {current_altitude:.2f}m)")
+                        print(f"Altitude exceeded 5 meters (Current: {current_altitude:.2f}m), initiating landing...")
+                        
+                        # Change to LAND mode and wait for confirmation
+                        drone.vehicle.mode = drone.Vehicle.LAND
+                        logbook.log_event("COMMAND", "Setting mode to LAND")
+                        
+                        # Monitor landing
+                        while current_altitude > 0.3:  # Wait until we're close to the ground
+                            current_altitude = drone.vehicle.location.global_relative_frame.alt
+                            logbook.log_event("STATUS", f"Landing in progress. Current altitude: {current_altitude:.2f}m")
+                            time.sleep(1)
+                        
                         serial_handler.is_running = False  # Stop the serial handler
+                        logbook.log_event("SAFETY", "Landing completed")
                         break  # Exit the loop after landing
                 except Exception as e:
                     if int(time.time()) % 30 == 0:  # Log errors every 30 seconds to avoid spam
