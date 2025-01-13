@@ -256,6 +256,111 @@ class DroneVehicle:
         new_location = vincentyDistance.destination(point=original_point, bearing=bearing)
         
         return (round(new_location.latitude, 7), round(new_location.longitude, 7)) 
+    
+    def move_to_location(self, distance, altitude, direction_degree):
+        """
+        Move the drone to a new location based on distance, altitude, and direction.
+        
+        :param distance: Distance to move in meters.
+        :param altitude: Altitude to maintain in meters.
+        :param direction_degree: Direction in degrees (0 is North, 90 is east).
+        """
+        try:
+            # Get the current GPS location of the drone
+            current_location = (self.vehicle.location.global_relative_frame.lat, 
+                                self.vehicle.location.global_relative_frame.lon)
+
+            # Calculate the new coordinates based on distance and direction
+            new_location = self.new_coords(current_location, distance, direction_degree)
+
+            # Calculate the distance to the new location
+            distance_to_new_location = self.calculate_distance(current_location, new_location)
+            distance_to_new_location1 = self.distance_between_two_gps_coord(current_location, new_location)
+
+            # print the intended movement
+            print("{} moving to new location {} at altitude {}m with direction {} degrees".format(self.name, new_location, altitude, direction_degree))
+
+            # Check if the new location is within 10 meters
+            if distance_to_new_location <= 10 and distance_to_new_location1 <= 10:
+                # Command the drone to go to the new location at the specified altitude
+                self.goto(new_location, altitude)
+            else:
+                print("{} Move to Location Error: New location is too far ({} meters)".format(self.name, distance_to_new_location))
+
+        except Exception as e:
+            print("{} Move to Location Error: {}".format(self.name, e))
+        # Example: drone.move_to_location(distance=100, altitude=10, direction_degree=90)
+
+    def rc_ov(self, mode, ch1=0, ch2=0, ch3=0, ch4=0, ch5=0, ch6=0):
+        """
+        Override RC channels.
+        
+        :param mode: RC mode to override
+        :param ch1: Value for RC channel 1
+        :param ch2: Value for RC channel 2
+        :param ch3: Value for RC channel 3
+        :param ch4: Value for RC channel 4
+        :param ch5: Value for RC channel 5
+        :param ch6: Value for RC channel 6
+        """
+        try:
+            if mode == 1:
+                # Set the RC channel overrides
+                self.vehicle.channels.overrides = {
+                    '1': ch1,
+                    '2': ch2,
+                    '3': ch3,
+                    '4': ch4,
+                    '5': ch5,
+                    '6': ch6
+                }
+
+                print(f"RC channels overridden: {ch1}, {ch2}, {ch3}, {ch4}, {ch5}, {ch6}")
+            else:
+                self.vehicle.channels.overrides = {
+                    '1': None,
+                    '2': None,
+                    '3': None,
+                    '4': None,
+                    '5': None,
+                    '6': None
+                }
+        except Exception as e:
+            print(f"Error overriding RC channels: {e}")
+        # Example: drone.rc_ov(mode=1, ch1=1500, ch2=1500, ch3=1500, ch4=1500)
+
+#################################################################################################################
+
+    def calculate_distance(self, location1, location2):
+        """
+        Calculate the distance between two GPS coordinates.
+        
+        :param location1: Tuple of (latitude, longitude) for the first location.
+        :param location2: Tuple of (latitude, longitude) for the second location.
+        :return: Distance in meters.
+        """
+        from geopy.distance import geodesic
+        return geodesic(location1, location2).meters
+
+    def distance_between_two_gps_coord(self, point1, point2):
+        try:
+            distance = great_circle(point1, point2).meters
+            return distance
+        except Exception as e:
+            print(f"Error calculating distance between two GPS coordinates: {e}")
+
+    def new_coords(self, original_gps_coord, displacement, rotation_degree_relative):
+        try:
+            vincentyDistance = geopy.distance.distance(meters=displacement)
+            original_point = geopy.Point(original_gps_coord[0], original_gps_coord[1])
+            new_gps_coord = vincentyDistance.destination(point=original_point, bearing=rotation_degree_relative)
+            new_gps_lat = new_gps_coord.latitude
+            new_gps_lon = new_gps_coord.longitude
+
+            return (round(new_gps_lat, 7), round(new_gps_lon, 7))
+        except Exception as e:
+            print(f"Error in calculating new coordinates: {e}")
+
 
     def handle_param_request(self, command):
         """
@@ -349,7 +454,6 @@ class SerialHandler:
         self.last_heartbeat = 0
         self.last_gui_update = 0
         self.heartbeat_interval = 1.0  # 1 second
-        self.gui_update_interval = 0.7  # 0.7 seconds
         self.logbook = LogBook()
 
     def send_message(self, target, command, payload):
@@ -533,6 +637,18 @@ class SerialHandler:
                 self.drone.land()
                 self.logbook.log_event("LAND", "Landing initiated")
                 return "Landing initiated"
+                
+            elif command == "POS":
+                # Parse x, y, altitude, and heading from payload
+                x, y, altitude, heading = map(float, payload.split(','))
+                # Calculate distance and direction from x,y
+                distance = math.sqrt(x*x + y*y)
+                direction = math.degrees(math.atan2(y, x))
+                if direction < 0:
+                    direction += 360
+                self.drone.move_to_location(distance, altitude, direction)
+                self.logbook.log_event("POS", f"Moving to position - X:{x}m Y:{y}m Alt:{altitude}m Heading:{heading}°")
+                return f"Moving to position X:{x}m Y:{y}m at altitude {altitude}m with heading {heading}°"
                 
             else:
                 self.logbook.log_event("UNKNOWN_COMMAND", f"Unknown command received: {command}")
