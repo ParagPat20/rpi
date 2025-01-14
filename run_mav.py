@@ -48,9 +48,9 @@ def main():
                         )
                         logbook.log_event("STATUS", status)
                     
-                    if current_altitude > 5:
-                        logbook.log_event("SAFETY", f"Altitude exceeded 5 meters (Current: {current_altitude:.2f}m)")
-                        print(f"Altitude exceeded 5 meters (Current: {current_altitude:.2f}m), initiating landing...")
+                    if current_altitude > 8:
+                        logbook.log_event("SAFETY", f"Altitude exceeded 8 meters (Current: {current_altitude:.2f}m)")
+                        print(f"Altitude exceeded 8 meters (Current: {current_altitude:.2f}m), initiating landing...")
                         
                         # Change to LAND mode and wait for confirmation
                         drone.vehicle.mode = drone.Vehicle.LAND

@@ -11,6 +11,8 @@ import serial
 import subprocess
 from datetime import datetime
 import os
+import threading
+from queue import Queue
 
 class LogBook:
     def __init__(self):
@@ -92,7 +94,7 @@ class DroneVehicle:
         else:
             print("Arming timed out")
 
-    def takeoff(self, alt=1):
+    def takeoff(self, alt=4):
         """Takes off to specified altitude"""
         self.arm()
         print("Taking off!")
@@ -106,6 +108,9 @@ class DroneVehicle:
             print(f" Altitude: {current_altitude}")
             if current_altitude >= alt * 0.95:
                 print("Reached target altitude")
+                self.set_mode("POSHOLD")
+                time.sleep(2)
+                self.set_mode("GUIDED")
                 break
             else:
                 print("Waiting for altitude information...")
@@ -455,6 +460,9 @@ class SerialHandler:
         self.last_gui_update = 0
         self.heartbeat_interval = 1.0  # 1 second
         self.logbook = LogBook()
+        self.command_queue = Queue()
+        self.command_thread = None
+        self.command_thread_running = False
 
     def send_message(self, target, command, payload):
         """
@@ -488,41 +496,61 @@ class SerialHandler:
             except Exception as e:
                 print(f"Error reading from serial port: {e}")
 
+    def start_command_processor(self):
+        """Starts the command processing thread"""
+        self.command_thread_running = True
+        self.command_thread = threading.Thread(target=self._process_command_queue)
+        self.command_thread.daemon = True
+        self.command_thread.start()
+
+    def stop_command_processor(self):
+        """Stops the command processing thread"""
+        self.command_thread_running = False
+        if self.command_thread:
+            self.command_thread.join()
+
+    def _process_command_queue(self):
+        """Process commands from the queue in a separate thread"""
+        while self.command_thread_running:
+            try:
+                if not self.command_queue.empty():
+                    sender, command, payload = self.command_queue.get()
+                    response = self.handle_commands(command, payload)
+                    self.send_message(sender, 'RES', response)
+                    self.command_queue.task_done()
+                else:
+                    time.sleep(0.1)  # Prevent busy waiting
+            except Exception as e:
+                print(f"Error in command processor: {e}")
+
     def process_received_message(self, message):
         """
         Processes a received message in the format {S:sender,C:cmd,P:payload}
-        
-        Args:
-            message (str): The received message string
+        Now queues commands instead of executing them directly
         """
-        print(f"Raw message received: {message}")  # Debugging line
+        print(f"Raw message received: {message}")
         if message.startswith('{') and message.endswith('}'):
             try:
-                # Remove brackets and split by comma instead of semicolon
                 parts = message[1:-1].split(';')
                 command_dict = {}
                 
-                # Parse each part
                 for part in parts:
                     key, value = part.strip().split(':', maxsplit=1)
                     command_dict[key.strip()] = value.strip()
                 
-                # Handle the command based on the parsed data
                 sender = command_dict.get('S')
                 command = command_dict.get('C')
                 payload = command_dict.get('P')
-                                
-                # Check if the command is REQ
-                if command == 'REQ':
-                    # Handle the attitude request and send the response back to the sender
-                    response_data = self.drone.handle_param_request(payload)
-                    self.send_message(sender, payload, response_data)  # Send the response back to the sender
-                    print(f"Sent response to {sender}: {response_data}")  # Debugging line
-                else:
-                    response = self.handle_commands(command, payload)
-                    self.send_message(sender, 'RES', response)
                 
-                print(f"Received from {sender}: Command: {command}, Payload: {payload}")
+                if command == 'REQ':
+                    # Handle parameter requests immediately as they're quick and non-blocking
+                    response_data = self.drone.handle_param_request(payload)
+                    self.send_message(sender, payload, response_data)
+                    print(f"Sent response to {sender}: {response_data}")
+                else:
+                    # Queue other commands for processing
+                    self.command_queue.put((sender, command, payload))
+                    print(f"Queued command from {sender}: Command: {command}, Payload: {payload}")
                 
             except Exception as e:
                 print(f"Error processing received message '{message}': {e}")
@@ -593,11 +621,11 @@ class SerialHandler:
                 return f"Launched to altitude {alt}m"
                 
             elif command == "NED":
-                x, y, z, t = map(float, payload.split(','))
-                self.drone.send_ned_velocity(x, y, z, t)
-                self.logbook.log_event("NED", f"Velocity command x:{x} y:{y} z:{z} t:{t}s")
-                return f"Moving with velocity x:{x} y:{y} z:{z} for {t}s"
-                
+                x, y, z, yaw = map(float, payload.split(','))
+                self.drone.send_ned_velocity(x, y, z)
+                self.drone.yaw(yaw)       
+                self.logbook.log_event("NED", f"Velocity command x:{x} y:{y} z:{z} yaw:{yaw}")
+                return f"Moving with velocity x:{x} y:{y} z:{z} yaw:{yaw}"
             elif command == "YAW":
                 h, r = map(float, payload.split(','))
                 self.drone.yaw(h, bool(r))
