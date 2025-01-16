@@ -81,7 +81,7 @@ def main():
         while True:
             if drone.vehicle:  # Only send messages if vehicle is connected
                 heartbeat_count += 1
-                if heartbeat_count % 60 == 0:  # Log heartbeat every 60 seconds
+                if heartbeat_count % 1 == 0:  # Log heartbeat every 60 seconds
                     logbook.log_event("HEARTBEAT", f"Heartbeat count: {heartbeat_count}")
                 print("Sending message to drone")
                 serial_handler.send_message('GCS', 'HB', '1')
