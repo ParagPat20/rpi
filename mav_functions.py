@@ -460,9 +460,6 @@ class SerialHandler:
         self.last_gui_update = 0
         self.heartbeat_interval = 1.0  # 1 second
         self.logbook = LogBook()
-        self.command_queue = Queue()
-        self.command_thread = None
-        self.command_thread_running = False
 
     def send_message(self, target, command, payload):
         """
@@ -496,37 +493,10 @@ class SerialHandler:
             except Exception as e:
                 print(f"Error reading from serial port: {e}")
 
-    def start_command_processor(self):
-        """Starts the command processing thread"""
-        self.command_thread_running = True
-        self.command_thread = threading.Thread(target=self._process_command_queue)
-        self.command_thread.daemon = True
-        self.command_thread.start()
-
-    def stop_command_processor(self):
-        """Stops the command processing thread"""
-        self.command_thread_running = False
-        if self.command_thread:
-            self.command_thread.join()
-
-    def _process_command_queue(self):
-        """Process commands from the queue in a separate thread"""
-        while self.command_thread_running:
-            try:
-                if not self.command_queue.empty():
-                    sender, command, payload = self.command_queue.get()
-                    response = self.handle_commands(command, payload)
-                    self.send_message(sender, 'RES', response)
-                    self.command_queue.task_done()
-                else:
-                    time.sleep(0.1)  # Prevent busy waiting
-            except Exception as e:
-                print(f"Error in command processor: {e}")
-
     def process_received_message(self, message):
         """
         Processes a received message in the format {S:sender,C:cmd,P:payload}
-        Now queues commands instead of executing them directly
+        Executes commands directly without queueing
         """
         print(f"Raw message received: {message}")
         if message.startswith('{') and message.endswith('}'):
@@ -543,14 +513,15 @@ class SerialHandler:
                 payload = command_dict.get('P')
                 
                 if command == 'REQ':
-                    # Handle parameter requests immediately as they're quick and non-blocking
+                    # Handle parameter requests
                     response_data = self.drone.handle_param_request(payload)
                     self.send_message(sender, payload, response_data)
                     print(f"Sent response to {sender}: {response_data}")
                 else:
-                    # Queue other commands for processing
-                    self.command_queue.put((sender, command, payload))
-                    print(f"Queued command from {sender}: Command: {command}, Payload: {payload}")
+                    # Execute command directly
+                    response = self.handle_commands(command, payload)
+                    self.send_message(sender, 'RES', response)
+                    print(f"Executed command from {sender}: Command: {command}, Payload: {payload}")
                 
             except Exception as e:
                 print(f"Error processing received message '{message}': {e}")
