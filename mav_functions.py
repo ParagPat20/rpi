@@ -12,8 +12,7 @@ import subprocess
 from datetime import datetime
 import os
 import threading
-from queue import Queue
-
+import time
 class LogBook:
     def __init__(self):
         # Get current username and home directory
@@ -460,6 +459,74 @@ class SerialHandler:
         self.last_gui_update = 0
         self.heartbeat_interval = 1.0  # 1 second
         self.logbook = LogBook()
+        self.command_threads = {}  # Dictionary to track command threads
+
+    def execute_command_in_thread(self, sender, command, payload):
+        """Execute a command in a separate thread"""
+        try:
+            response = self.handle_commands(command, payload)
+            self.send_message(sender, 'RES', response)
+            print(f"Executed command from {sender}: Command: {command}, Payload: {payload}")
+            # Remove thread from tracking dictionary when done
+            if f"{sender}_{command}" in self.command_threads:
+                del self.command_threads[f"{sender}_{command}"]
+        except Exception as e:
+            error_msg = f"Error executing command {command}: {str(e)}"
+            self.send_message(sender, 'RES', error_msg)
+            print(error_msg)
+
+    def process_received_message(self, message):
+        """
+        Processes a received message in the format {S:sender,C:cmd,P:payload}
+        Executes commands in separate threads
+        """
+        print(f"Raw message received: {message}")
+        if message.startswith('{') and message.endswith('}'):
+            try:
+                parts = message[1:-1].split(';')
+                command_dict = {}
+                
+                for part in parts:
+                    key, value = part.strip().split(':', maxsplit=1)
+                    command_dict[key.strip()] = value.strip()
+                
+                sender = command_dict.get('S')
+                command = command_dict.get('C')
+                payload = command_dict.get('P')
+                
+                if command == 'REQ':
+                    # Handle parameter requests in main thread as they're quick
+                    response_data = self.drone.handle_param_request(payload)
+                    self.send_message(sender, payload, response_data)
+                    print(f"Sent response to {sender}: {response_data}")
+                else:
+                    # Create a new thread for command execution
+                    thread_name = f"{sender}_{command}"
+                    if thread_name not in self.command_threads:  # Only start if not already running
+                        command_thread = threading.Thread(
+                            target=self.execute_command_in_thread,
+                            args=(sender, command, payload),
+                            name=thread_name
+                        )
+                        self.command_threads[thread_name] = command_thread
+                        command_thread.start()
+                        print(f"Started thread for command {command} from {sender}")
+                    else:
+                        print(f"Command {command} from {sender} is already running")
+                
+            except Exception as e:
+                print(f"Error processing received message '{message}': {e}")
+                if sender:
+                    self.send_message(sender, 'RES', f"Error: {str(e)}")
+
+    def stop(self):
+        """Stop all running command threads"""
+        self.is_running = False
+        # Wait for all command threads to finish
+        for thread_name, thread in self.command_threads.items():
+            if thread.is_alive():
+                thread.join(timeout=2.0)  # Wait up to 2 seconds for each thread
+        self.command_threads.clear()
 
     def send_message(self, target, command, payload):
         """
@@ -492,39 +559,6 @@ class SerialHandler:
                     self.process_received_message(line)
             except Exception as e:
                 print(f"Error reading from serial port: {e}")
-
-    def process_received_message(self, message):
-        """
-        Processes a received message in the format {S:sender,C:cmd,P:payload}
-        Executes commands directly without queueing
-        """
-        print(f"Raw message received: {message}")
-        if message.startswith('{') and message.endswith('}'):
-            try:
-                parts = message[1:-1].split(';')
-                command_dict = {}
-                
-                for part in parts:
-                    key, value = part.strip().split(':', maxsplit=1)
-                    command_dict[key.strip()] = value.strip()
-                
-                sender = command_dict.get('S')
-                command = command_dict.get('C')
-                payload = command_dict.get('P')
-                
-                if command == 'REQ':
-                    # Handle parameter requests
-                    response_data = self.drone.handle_param_request(payload)
-                    self.send_message(sender, payload, response_data)
-                    print(f"Sent response to {sender}: {response_data}")
-                else:
-                    # Execute command directly
-                    response = self.handle_commands(command, payload)
-                    self.send_message(sender, 'RES', response)
-                    print(f"Executed command from {sender}: Command: {command}, Payload: {payload}")
-                
-            except Exception as e:
-                print(f"Error processing received message '{message}': {e}")
 
     def handle_commands(self, command, payload):
         """
