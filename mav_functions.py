@@ -282,14 +282,14 @@ class DroneVehicle:
             distance_to_new_location1 = self.distance_between_two_gps_coord(current_location, new_location)
 
             # print the intended movement
-            print("{} moving to new location {} at altitude {}m with direction {} degrees".format(self.name, new_location, altitude, direction_degree))
+            print("{} moving to new location {} at altitude {}m with direction {} degrees".format(new_location, altitude, direction_degree))
 
             # Check if the new location is within 10 meters
             if distance_to_new_location <= 10 and distance_to_new_location1 <= 10:
                 # Command the drone to go to the new location at the specified altitude
                 self.goto(new_location, altitude)
             else:
-                print("{} Move to Location Error: New location is too far ({} meters)".format(self.name, distance_to_new_location))
+                print("{} Move to Location Error: New location is too far ({} meters)".format(distance_to_new_location))
 
         except Exception as e:
             print("{} Move to Location Error: {}".format(self.name, e))
