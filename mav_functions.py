@@ -285,7 +285,7 @@ class DroneVehicle:
             print("{} moving to new location {} at altitude {}m with direction {} degrees".format(new_location, altitude, direction_degree))
 
             # Check if the new location is within 10 meters
-            if distance_to_new_location <= 10 and distance_to_new_location1 <= 10:
+            if distance_to_new_location <= 100 and distance_to_new_location1 <= 100:
                 # Command the drone to go to the new location at the specified altitude
                 self.goto(new_location, altitude)
             else:
@@ -460,6 +460,52 @@ class SerialHandler:
         self.heartbeat_interval = 1.0  # 1 second
         self.logbook = LogBook()
         self.command_threads = {}  # Dictionary to track command threads
+        self.failsafe_thread = None
+        self.MAX_ALTITUDE = 15  # meters
+        self.FAILSAFE_CHECK_INTERVAL = 3  # seconds
+
+    def start_failsafe_monitor(self):
+        """Start the failsafe monitoring thread"""
+        self.failsafe_thread = threading.Thread(target=self._failsafe_check)
+        self.failsafe_thread.daemon = True
+        self.failsafe_thread.start()
+        self.logbook.log_event("FAILSAFE", "Failsafe monitoring thread started")
+
+    def _failsafe_check(self):
+        """Continuously monitor drone altitude for safety"""
+        while self.is_running:
+            try:
+                if self.drone.vehicle:
+                    current_altitude = self.drone.vehicle.location.global_relative_frame.alt
+                    if current_altitude > self.MAX_ALTITUDE:
+                        self.logbook.log_event("FAILSAFE", f"Altitude exceeded {self.MAX_ALTITUDE}m (Current: {current_altitude:.2f}m)")
+                        print(f"FAILSAFE: Altitude exceeded {self.MAX_ALTITUDE}m, initiating emergency landing...")
+                        
+                        # Initiate landing
+                        self.drone.land()
+                        
+                        # Monitor landing progress
+                        while current_altitude > 0.3:  # Wait until near ground
+                            current_altitude = self.drone.vehicle.location.global_relative_frame.alt
+                            self.logbook.log_event("FAILSAFE", f"Emergency landing in progress. Altitude: {current_altitude:.2f}m")
+                            time.sleep(1)
+                            
+                        self.logbook.log_event("FAILSAFE", "Emergency landing completed")
+            except Exception as e:
+                self.logbook.log_event("FAILSAFE_ERROR", f"Error in failsafe monitor: {str(e)}")
+            
+            time.sleep(self.FAILSAFE_CHECK_INTERVAL)
+
+    def start(self):
+        """Start all handler threads"""
+        self.is_running = True
+        # Start serial reading thread
+        self.read_thread = threading.Thread(target=self.read_serial_commands)
+        self.read_thread.daemon = True
+        self.read_thread.start()
+        # Start failsafe monitoring
+        self.start_failsafe_monitor()
+        self.logbook.log_event("SYSTEM", "All handler threads started")
 
     def execute_command_in_thread(self, sender, command, payload):
         """Execute a command in a separate thread"""
@@ -628,7 +674,8 @@ class SerialHandler:
             elif command == "NED":
                 x, y, z, yaw = map(float, payload.split(','))
                 self.drone.send_ned_velocity(x, y, z)
-                self.drone.yaw(yaw)       
+                if yaw != 0:
+                    self.drone.yaw(heading=yaw, relative=True)       
                 self.logbook.log_event("NED", f"Velocity command x:{x} y:{y} z:{z} yaw:{yaw}")
                 return f"Moving with velocity x:{x} y:{y} z:{z} yaw:{yaw}"
             elif command == "YAW":
@@ -681,6 +728,7 @@ class SerialHandler:
                     direction += 360
                 self.drone.move_to_location(distance, altitude, direction)
                 self.logbook.log_event("POS", f"Moving to position - X:{x}m Y:{y}m Alt:{altitude}m Heading:{heading}°")
+                self.drone.yaw(heading)
                 return f"Moving to position X:{x}m Y:{y}m at altitude {altitude}m with heading {heading}°"
                 
             else:
