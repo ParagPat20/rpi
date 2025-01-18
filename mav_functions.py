@@ -609,13 +609,6 @@ class SerialHandler:
     def handle_commands(self, command, payload):
         """
         Handles drone commands based on the protocol
-        
-        Args:
-            command (str): Command to execute
-            payload (str): Command parameters
-        
-        Returns:
-            str: Response message or error
         """
         try:
             if command == "INIT":
@@ -719,17 +712,46 @@ class SerialHandler:
                 return "Landing initiated"
                 
             elif command == "POS":
-                # Parse x, y, altitude, and heading from payload
-                x, y, altitude, heading = map(float, payload.split(','))
-                # Calculate distance and direction from x,y
-                distance = math.sqrt(x*x + y*y)
-                direction = math.degrees(math.atan2(y, x))
-                if direction < 0:
-                    direction += 360
-                self.drone.move_to_location(distance, altitude, direction)
-                self.logbook.log_event("POS", f"Moving to position - X:{x}m Y:{y}m Alt:{altitude}m Heading:{heading}°")
-                self.drone.yaw(heading)
-                return f"Moving to position X:{x}m Y:{y}m at altitude {altitude}m with heading {heading}°"
+                try:
+                    # Parse the payload
+                    coords = payload.split(',')
+                    if len(coords) != 4:
+                        raise ValueError("POS command requires 4 values: x,y,altitude,heading")
+                    
+                    x = float(coords[0])
+                    y = float(coords[1])
+                    altitude = float(coords[2])
+                    heading = float(coords[3])
+
+                    # Calculate distance and direction from x,y coordinates
+                    distance = math.sqrt(x*x + y*y)
+                    
+                    # Calculate direction in degrees (0° is North, 90° is East)
+                    direction = math.degrees(math.atan2(x, y))  # Changed from atan2(y,x) to atan2(x,y)
+                    
+                    # Normalize direction to 0-360 degrees
+                    direction = (90 - direction) % 360  # Adjust to make 0° North
+                    
+                    # Log the calculated values
+                    print(f"Calculated distance: {distance}m, direction: {direction}°")
+                    
+                    # Execute the movement
+                    self.drone.move_to_location(distance, altitude, direction)
+                    self.logbook.log_event("POS", 
+                        f"Moving to position - X:{x}m Y:{y}m Alt:{altitude}m Heading:{heading}°")
+                    
+                    # After reaching position, adjust heading
+                    time.sleep(1)  # Small delay to ensure position is reached
+                    self.drone.yaw(heading)
+                    
+                    return (f"Moving to position X:{x}m Y:{y}m at altitude {altitude}m "
+                            f"(distance: {distance:.1f}m, direction: {direction:.1f}°) "
+                            f"with final heading {heading}°")
+                    
+                except ValueError as ve:
+                    error_msg = f"Invalid POS command format: {str(ve)}"
+                    self.logbook.log_event("ERROR", error_msg)
+                    return error_msg
                 
             else:
                 self.logbook.log_event("UNKNOWN_COMMAND", f"Unknown command received: {command}")
