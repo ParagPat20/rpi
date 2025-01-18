@@ -93,7 +93,7 @@ class DroneVehicle:
         else:
             print("Arming timed out")
 
-    def takeoff(self, alt=4):
+    def takeoff(self, alt=5):
         """Takes off to specified altitude"""
         self.arm()
         print("Taking off!")
@@ -292,7 +292,7 @@ class DroneVehicle:
                 print("{} Move to Location Error: New location is too far ({} meters)".format(distance_to_new_location))
 
         except Exception as e:
-            print("{} Move to Location Error: {}".format(self.name, e))
+            print("{} Move to Location Error: {}".format(e))
         # Example: drone.move_to_location(distance=100, altitude=10, direction_degree=90)
 
     def rc_ov(self, mode, ch1=0, ch2=0, ch3=0, ch4=0, ch5=0, ch6=0):
