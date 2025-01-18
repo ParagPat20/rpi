@@ -265,35 +265,34 @@ class DroneVehicle:
         """
         Move the drone to a new location based on distance, altitude, and direction.
         
-        :param distance: Distance to move in meters.
-        :param altitude: Altitude to maintain in meters.
-        :param direction_degree: Direction in degrees (0 is North, 90 is east).
+        Args:
+            distance (float): Distance to move in meters
+            altitude (float): Target altitude in meters
+            direction_degree (float): Direction in degrees (0 is North, 90 is East)
         """
         try:
             # Get the current GPS location of the drone
             current_location = (self.vehicle.location.global_relative_frame.lat, 
-                                self.vehicle.location.global_relative_frame.lon)
-
+                              self.vehicle.location.global_relative_frame.lon)
+            
             # Calculate the new coordinates based on distance and direction
             new_location = self.new_coords(current_location, distance, direction_degree)
+            if not new_location:  # Check if new_coords returned None or invalid result
+                raise ValueError("Failed to calculate new coordinates")
 
-            # Calculate the distance to the new location
-            distance_to_new_location = self.calculate_distance(current_location, new_location)
-            distance_to_new_location1 = self.distance_between_two_gps_coord(current_location, new_location)
+            # Print debug information
+            print(f"Current location: {current_location}")
+            print(f"Moving: distance={distance}m, direction={direction_degree}°")
+            print(f"Target location: {new_location}")
 
-            # print the intended movement
-            print("{} moving to new location {} at altitude {}m with direction {} degrees".format(new_location, altitude, direction_degree))
-
-            # Check if the new location is within 10 meters
-            if distance_to_new_location <= 100 and distance_to_new_location1 <= 100:
-                # Command the drone to go to the new location at the specified altitude
-                self.goto(new_location, altitude)
-            else:
-                print("{} Move to Location Error: New location is too far ({} meters)".format(distance_to_new_location))
+            # Command the drone to go to the new location at the specified altitude
+            self.goto(new_location, altitude)
+            
+            return True
 
         except Exception as e:
-            print("{} Move to Location Error: {}".format(e))
-        # Example: drone.move_to_location(distance=100, altitude=10, direction_degree=90)
+            print(f"Move to Location Error: {str(e)}")
+            raise  # Re-raise the exception to be handled by the caller
 
     def rc_ov(self, mode, ch1=0, ch2=0, ch3=0, ch4=0, ch5=0, ch6=0):
         """
@@ -354,17 +353,32 @@ class DroneVehicle:
             print(f"Error calculating distance between two GPS coordinates: {e}")
 
     def new_coords(self, original_gps_coord, displacement, rotation_degree_relative):
+        """
+        Calculate new GPS coordinates based on distance and direction from current position.
+        
+        Args:
+            original_gps_coord (tuple): Current (latitude, longitude)
+            displacement (float): Distance to move in meters
+            rotation_degree_relative (float): Direction in degrees (0 is North, 90 is East)
+            
+        Returns:
+            tuple: New (latitude, longitude) coordinates
+        """
         try:
+            if not isinstance(original_gps_coord, tuple) or len(original_gps_coord) != 2:
+                raise ValueError(f"Invalid original coordinates: {original_gps_coord}")
+            
             vincentyDistance = geopy.distance.distance(meters=displacement)
             original_point = geopy.Point(original_gps_coord[0], original_gps_coord[1])
             new_gps_coord = vincentyDistance.destination(point=original_point, bearing=rotation_degree_relative)
-            new_gps_lat = new_gps_coord.latitude
-            new_gps_lon = new_gps_coord.longitude
-
-            return (round(new_gps_lat, 7), round(new_gps_lon, 7))
+            
+            return (round(new_gps_coord.latitude, 7), round(new_gps_coord.longitude, 7))
+            
         except Exception as e:
-            print(f"Error in calculating new coordinates: {e}")
-
+            print(f"Error calculating new coordinates: {e}")
+            print(f"Input values: original_coords={original_gps_coord}, "
+                  f"displacement={displacement}, rotation={rotation_degree_relative}")
+            return None
 
     def handle_param_request(self, command):
         """
