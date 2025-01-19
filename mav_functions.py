@@ -727,39 +727,31 @@ class SerialHandler:
                 
             elif command == "POS":
                 try:
-                    # Parse the payload
-                    coords = payload.split(',')
-                    if len(coords) != 4:
-                        raise ValueError("POS command requires 4 values: x,y,altitude,heading")
+                    # Parse x, y, altitude, and heading
+                    x, y, altitude, heading = map(float, payload.split(','))
                     
-                    x = float(coords[0])
-                    y = float(coords[1])
-                    altitude = float(coords[2])
-                    heading = float(coords[3])
-
-                    # Calculate distance and direction from x,y coordinates
-                    distance = math.sqrt(x*x + y*y)
+                    # Calculate distance and bearing from x,y coordinates
+                    distance = math.sqrt(x*x + y*y)  # Distance from current position
                     
-                    # Calculate direction in degrees (0° is North, 90° is East)
-                    direction = math.degrees(math.atan2(x, y))  # Changed from atan2(y,x) to atan2(x,y)
+                    # Calculate bearing (0° is North, 90° is East)
+                    # atan2(x,y) gives angle from North when x is East component and y is North component
+                    bearing = math.degrees(math.atan2(x, y))
+                    bearing = (90 - bearing) % 360  # Convert to compass bearing
                     
-                    # Normalize direction to 0-360 degrees
-                    direction = (90 - direction) % 360  # Adjust to make 0° North
+                    # First move to the position using goto (same as MTL command)
+                    current_loc = self.drone.get_location()[0]
+                    new_loc = self.drone.new_location(current_loc, distance, bearing)
+                    self.drone.goto(new_loc, altitude)
                     
-                    # Log the calculated values
-                    print(f"Calculated distance: {distance}m, direction: {direction}°")
-                    
-                    # Execute the movement
-                    self.drone.move_to_location(distance, altitude, direction)
-                    self.logbook.log_event("POS", 
-                        f"Moving to position - X:{x}m Y:{y}m Alt:{altitude}m Heading:{heading}°")
-                    
-                    # After reaching position, adjust heading
+                    # After reaching position, adjust to final heading
                     time.sleep(1)  # Small delay to ensure position is reached
-                    self.drone.yaw(heading)
                     
-                    return (f"Moving to position X:{x}m Y:{y}m at altitude {altitude}m "
-                            f"(distance: {distance:.1f}m, direction: {direction:.1f}°) "
+                    
+                    self.logbook.log_event("POS", 
+                        f"Moving to position - Distance:{distance}m Alt:{altitude}m Bearing:{bearing}° FinalHeading:{heading}°")
+                    
+                    return (f"Moving to position at distance {distance:.1f}m, "
+                            f"altitude {altitude}m, bearing {bearing:.1f}°, "
                             f"with final heading {heading}°")
                     
                 except ValueError as ve:
