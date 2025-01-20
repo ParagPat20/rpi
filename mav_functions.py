@@ -739,9 +739,9 @@ class SerialHandler:
                     bearing = (90 - bearing) % 360  # Convert to compass bearing
                     
                     # First move to the position using goto (same as MTL command)
-                    current_loc = self.drone.get_location()[0]
-                    new_loc = self.drone.new_location(current_loc, distance, bearing)
-                    self.drone.goto(new_loc, altitude)
+                    current_locat = self.drone.get_location()[0]
+                    new_locat = self.drone.new_location(current_locat, distance, bearing)
+                    self.drone.goto(new_locat, altitude)
                     
                     # After reaching position, adjust to final heading
                     time.sleep(1)  # Small delay to ensure position is reached
