@@ -634,7 +634,12 @@ class SerialHandler:
         Handles drone commands based on the protocol
         """
         try:
-            if command == "INIT":
+            if command == "REQ":
+                # Handle parameter request
+                response_data = self.drone.handle_param_request(payload)
+                return response_data
+                
+            elif command == "INIT":
                 # Kill existing mav session if exists
                 try:
                     subprocess.run(['tmux', 'kill-session', '-t', 'mav'])
