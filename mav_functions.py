@@ -555,10 +555,19 @@ class SerialHandler:
                 payload = command_dict.get('P')
                 
                 if command == 'REQ':
-                    # Handle parameter requests in main thread as they're quick
-                    response_data = self.drone.handle_param_request(payload)
-                    self.send_message(sender, payload, response_data)
-                    print(f"Sent response to {sender}: {response_data}")
+                    # Create a new thread for parameter request
+                    thread_name = f"{sender}_REQ"
+                    if thread_name not in self.command_threads:  # Only start if not already running
+                        command_thread = threading.Thread(
+                            target=self.execute_command_in_thread,
+                            args=(sender, 'REQ', payload),
+                            name=thread_name
+                        )
+                        self.command_threads[thread_name] = command_thread
+                        command_thread.start()
+                        print(f"Started thread for parameter request from {sender}")
+                    else:
+                        print(f"Parameter request from {sender} is already running")
                 else:
                     # Create a new thread for command execution
                     thread_name = f"{sender}_{command}"
@@ -673,7 +682,7 @@ class SerialHandler:
                 return "Disarmed"
                 
             elif command == "LAUNCH":
-                alt = float(payload) if payload else 2
+                alt = float(payload) if payload else 5
                 self.drone.takeoff(alt)
                 self.logbook.log_event("LAUNCH", f"Takeoff to altitude {alt}m")
                 return f"Launched to altitude {alt}m"
