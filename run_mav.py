@@ -37,6 +37,8 @@ def main():
             if drone.vehicle:  # Only send messages if vehicle is connected
                 # Send heartbeat every second
                 serial_handler.send_message('GCS', 'HB', '1')
+                print("Heartbeat sent")
+
             time.sleep(1)
 
     except KeyboardInterrupt:
