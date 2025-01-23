@@ -696,12 +696,12 @@ class SerialHandler:
                 
             elif command == "SET_MODE":
                 if payload == "FLIP":
-                    self.drone.set_mode("ALTHOLD")
-                    while self.drone.vehicle.mode.name != "ALTHOLD":
+                    self.drone.set_mode("ALT_HOLD")
+                    while self.drone.vehicle.mode.name != "ALT_HOLD":
                         time.sleep(0.1)
                     self.drone.set_mode("FLIP")
                     time.sleep(2)
-                    while self.drone.vehicle.mode.name != "ALTHOLD":
+                    while self.drone.vehicle.mode.name != "ALT_HOLD":
                         time.sleep(0.1)
                     self.drone.set_mode("GUIDED")
                     while self.drone.vehicle.mode.name != "GUIDED":
