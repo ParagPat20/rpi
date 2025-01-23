@@ -12,7 +12,21 @@ def main():
     
     drone = DroneVehicle(connection_string)
     
-    serial_handler = SerialHandler(drone, '/dev/ttyUSB0', 115200)  # Initialize SerialHandler with the drone instance
+    # Try different serial ports until one succeeds
+    ports = [f'/dev/ttyUSB{i}' for i in range(4)] + [f'/dev/ttyACM{i}' for i in range(4)]
+    serial_handler = None
+    
+    for port in ports:
+        try:
+            serial_handler = SerialHandler(drone, port, 115200)
+            print(f"Successfully connected to {port}")
+            break
+        except:
+            print(f"Failed to connect to {port}")
+            continue
+            
+    if not serial_handler:
+        raise Exception("Could not connect to any serial port")
     logbook.log_event("CONFIG", "Serial handler initialized on /dev/ttyUSB0 at 115200 baud")
     print("Drone initialized")
     serial_handler.start()  # This will start both serial reading and failsafe monitoring threads
