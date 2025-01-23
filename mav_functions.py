@@ -383,75 +383,52 @@ class DroneVehicle:
     def handle_param_request(self, command):
         """
         Handles parameter data requests based on the command.
-        Constructs and returns the requested data as a string.
+        Returns data formatted according to the protocol.
         
         Args:
             command (str): The command specifying the data to request (e.g., 'LOC', 'GPS', etc.)
             
         Returns:
-            str: A comma-separated string of the requested data
+            str: A comma-separated string of the requested data without parameter names
         """
         try:
-            # Define the data requests based on protocol
-            data_requests = {
-                'LOC': ['lat', 'lon', 'alt'],
-                'GPS': ['type', 'satellites'],
-                'BATT': ['volt', 'amp', 'level'],
-                'ATTITUDE': ['pitch', 'roll', 'yaw', 'heading'],
-                'SPEED': ['airspd', 'gndspd', 'velocity'],
-                'MODE': ['mode'],
-                'ARMED': ['is_armed']
-            }
-            
-            # Construct the response string
-            response = ""
-            if command in data_requests:
-                params = data_requests[command]
-                for param in params:
-                    if param == 'lat':
-                        response += f"{self.vehicle.location.global_relative_frame.lat},"
-                    elif param == 'lon':
-                        response += f"{self.vehicle.location.global_relative_frame.lon},"
-                    elif param == 'alt':
-                        response += f"{self.vehicle.location.global_relative_frame.alt},"
-                    elif param == 'type':
-                        response += f"{self.vehicle.gps_0.fix_type},"
-                    elif param == 'satellites':
-                        response += f"{self.vehicle.gps_0.satellites_visible},"
-                    elif param == 'volt':
-                        response += f"{self.vehicle.battery.voltage},"
-                    elif param == 'amp':
-                        response += f"{self.vehicle.battery.current},"
-                    elif param == 'level':
-                        response += f"{self.vehicle.battery.level},"
-                    elif param == 'pitch':
-                        response += f"{self.vehicle.attitude.pitch},"
-                    elif param == 'roll':
-                        response += f"{self.vehicle.attitude.roll},"
-                    elif param == 'yaw':
-                        response += f"{self.vehicle.attitude.yaw},"
-                    elif param == 'heading':
-                        response += f"{self.vehicle.heading},"
-                    elif param == 'airspd':
-                        response += f"{self.vehicle.airspeed},"
-                    elif param == 'gndspd':
-                        response += f"{self.vehicle.groundspeed},"
-                    elif param == 'velocity':
-                        response += f"{self.vehicle.velocity},"
-                    elif param == 'mode':
-                        response += f"{self.vehicle.mode.name},"
-                    elif param == 'is_armed':
-                        response += f"{self.vehicle.armed},"
-                # Remove the trailing comma
-                response = response.rstrip(',')
-            else:
-                response = "Invalid command"
+            if command == 'LOC':
+                return (f"{self.vehicle.location.global_relative_frame.lat},"
+                       f"{self.vehicle.location.global_relative_frame.lon},"
+                       f"{self.vehicle.location.global_relative_frame.alt}")
+                       
+            elif command == 'GPS':
+                return (f"{self.vehicle.gps_0.fix_type},"
+                       f"{self.vehicle.gps_0.satellites_visible}")
+                       
+            elif command == 'BATT':
+                return (f"{self.vehicle.battery.voltage},"
+                       f"{self.vehicle.battery.current},"
+                       f"{self.vehicle.battery.level}")
+                       
+            elif command == 'ATTITUDE':
+                return (f"{self.vehicle.attitude.pitch},"
+                       f"{self.vehicle.attitude.roll},"
+                       f"{self.vehicle.attitude.yaw},"
+                       f"{self.vehicle.heading}")
+                       
+            elif command == 'SPEED':
+                return (f"{self.vehicle.airspeed},"
+                       f"{self.vehicle.groundspeed},"
+                       f"{self.vehicle.velocity}")
+                       
+            elif command == 'MODE':
+                return f"{self.vehicle.mode.name}"
                 
-            return response
+            elif command == 'ARMED':
+                return f"{self.vehicle.armed}"
+                
+            else:
+                return "Invalid command"
                     
         except Exception as e:
             print(f"Error in handle_param_request: {e}")
-            return "Error: " + str(e)
+            return f"Error: {str(e)}"
             
     def get_attitude_data(self):
         """
@@ -635,9 +612,21 @@ class SerialHandler:
         """
         try:
             if command == "REQ":
-                # Handle parameter request
-                response_data = self.drone.handle_param_request(payload)
-                return response_data
+                # Define valid data request types
+                valid_requests = {
+                    'LOC', 'GPS', 'BATT', 'ATTITUDE', 'SPEED', 'MODE', 'ARMED'
+                }
+                
+                if payload in valid_requests:
+                    # Get the parameter data
+                    response_data = self.drone.handle_param_request(payload)
+                    # Send the data directly to GCS with the request type as command
+                    self.send_message('GCS', payload, response_data)
+                    return f"Sent {payload} data to GCS"
+                else:
+                    error_msg = f"Invalid parameter request: {payload}"
+                    self.logbook.log_event("ERROR", error_msg)
+                    return error_msg
                 
             elif command == "INIT":
                 # Kill existing mav session if exists
